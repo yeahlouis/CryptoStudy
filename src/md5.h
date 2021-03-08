@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2021 Louis Suen
+ * Licensed under the MIT License. See the LICENSE file for the full text.
+ */
+
 #ifndef MD5_H
 #define MD5_H
 

@@ -1,4 +1,7 @@
-/* https://www.rfc-editor.org/rfc/rfc1321.txt */
+/*
+ * Copyright (c) 2021 Louis Suen
+ * Licensed under the MIT License. See the LICENSE file for the full text.
+ */
 
 #include <string.h>
 #include "md5.h"
@@ -205,6 +208,10 @@ void MD5Final(MD5_CTX *context,unsigned char digest[16]) {
 #ifdef __MD5_TEST__
 /*
 gcc -Wall -D__MD5_TEST__ md5.c
+
+https://www.rfc-editor.org/info/rfc1321
+https://www.rfc-editor.org/rfc/rfc1321.txt
+
 MD5 test suite:
 MD5 ("") = d41d8cd98f00b204e9800998ecf8427e
 MD5 ("a") = 0cc175b9c0f1b6a831c399e269772661
