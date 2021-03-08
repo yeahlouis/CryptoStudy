@@ -1,3 +1,6 @@
+# .bak files
+*.bak
+
 # Prerequisites
 *.d
 
