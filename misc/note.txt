@@ -28,6 +28,8 @@ https://www.rfc-editor.org/info/rfc3174
 https://www.rfc-editor.org/rfc/rfc3174.txt
 
 
+https://www.rfc-editor.org/rfc/rfc6234.txt
+
  *      The five hashes are defined in these sizes:
  *              MD5             16 byte / 128 bit
  *              SHA-1           20 byte / 160 bit
