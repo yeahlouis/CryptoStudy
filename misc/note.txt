@@ -20,7 +20,9 @@ SHA-1
 
 
 md5
+https://www.rfc-editor.org/info/rfc1321
 https://www.rfc-editor.org/rfc/rfc1321.txt
 
 sha1
+https://www.rfc-editor.org/info/rfc3174
 https://www.rfc-editor.org/rfc/rfc3174.txt
