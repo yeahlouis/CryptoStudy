@@ -30,10 +30,31 @@ https://www.rfc-editor.org/rfc/rfc3174.txt
 
 https://www.rfc-editor.org/rfc/rfc6234.txt
 
- *      The five hashes are defined in these sizes:
+
  *              MD5             16 byte / 128 bit
+ *      The five hashes are defined in these sizes:
  *              SHA-1           20 byte / 160 bit
  *              SHA-224         28 byte / 224 bit
  *              SHA-256         32 byte / 256 bit
  *              SHA-384         48 byte / 384 bit
  *              SHA-512         64 byte / 512 bit
+
+
+
+
+/*
+ *  Define patterns for testing
+ */
+#define TEST1    "abc"
+#define TEST2_1  \
+        "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+#define TEST2_2a \
+        "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmn"
+#define TEST2_2b \
+        "hijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+#define TEST2_2  TEST2_2a TEST2_2b
+#define TEST3    "a"                            /* times 1000000 */
+#define TEST4a   "01234567012345670123456701234567"
+#define TEST4b   "01234567012345670123456701234567"
+    /* an exact multiple of 512 bits */
+#define TEST4   TEST4a TEST4b                   /* times 10 */
