@@ -6,6 +6,21 @@
 #include <string.h>
 #include "md5.h"
 
+
+#define MD5_GET_UINT32(b) ( \
+	((uint32_t)((b)[3] & 0xFF) << 24) | \
+	((uint32_t)((b)[2] & 0xFF) << 16) | \
+	((uint32_t)((b)[1] & 0xFF) <<  8) | \
+	((uint32_t)((b)[0] & 0xFF)))
+
+#define MD5_PUT_UINT32(dst, x)              \
+    do {                                \
+	    (dst)[0] = (x) & 0xFF;          \
+	    (dst)[1] = ((x) >>  8) & 0xFF;  \
+	    (dst)[2] = ((x) >> 16) & 0xFF;  \
+	    (dst)[3] = ((x) >> 24) & 0xFF;  \
+    } while (0)
+
 #define F(x,y,z) ((x & y) | (~x & z))
 #define G(x,y,z) ((x & z) | (y & ~z))
 #define H(x,y,z) (x^y^z)
@@ -44,27 +59,6 @@ unsigned char PADDING[] = {
 	   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
 
-void MD5Encode(unsigned char *output,unsigned int *input,unsigned int len) {
-	unsigned int i = 0,j = 0;
-	while(j < len) {
-		output[j] = input[i] & 0xFF;
-		output[j+1] = (input[i] >> 8) & 0xFF;
-		output[j+2] = (input[i] >> 16) & 0xFF;
-		output[j+3] = (input[i] >> 24) & 0xFF;
-		i++;
-		j+=4;
-	}
-}
-
-void MD5Decode(unsigned int *output, unsigned char *input, unsigned int len) {
-	unsigned int i = 0,j = 0;
-	while(j < len) {
-		output[i] = (input[j]) | (input[j+1] << 8) | (input[j+2] << 16) | (input[j+3] << 24);
-		i++;
-		j+=4;
-	}
-}
-
 void MD5Transform(unsigned int state[4], unsigned char block[64]) {
 	uint32_t a = state[0];
 	uint32_t b = state[1];
@@ -72,7 +66,9 @@ void MD5Transform(unsigned int state[4], unsigned char block[64]) {
 	uint32_t d = state[3];
 	uint32_t x[16];
 
-	MD5Decode(x,block,64);
+    int i;
+	for (i = 0; i < 16; i++)
+   	    x[i] = MD5_GET_UINT32(&block[4 * i]);
 
     /* Round 1 */
 	FF(a, b, c, d, x[ 0],  7, 0xd76aa478);
@@ -169,7 +165,7 @@ void MD5Update(MD5_CTX *context,unsigned char *input,unsigned int inputlen)
 
     /* Compute number of bytes mod 64 */
 	index = (context->count[0] >> 3) & 0x3F;
-	partlen = 64 - index;
+	partlen = 64 - index; //first, index is 0, partlen is 64
 
 	context->count[0] += inputlen << 3;
 	if(context->count[0] < (inputlen << 3)) {
@@ -199,10 +195,19 @@ void MD5Final(MD5_CTX *context,unsigned char digest[16]) {
 	index = (context->count[0] >> 3) & 0x3F;
 	padlen = (index < 56)?(56-index):(120-index);
     
-	MD5Encode(bits,context->count,8);
+	//MD5Encode(bits,context->count,8);
+    //低位在前
+    MD5_PUT_UINT32(&bits[0], context->count[0]);
+    MD5_PUT_UINT32(&bits[4], context->count[1]);
+
 	MD5Update(context,PADDING,padlen);
 	MD5Update(context,bits,8);
-	MD5Encode(digest,context->state,16);
+
+    MD5_PUT_UINT32(&digest[ 0], context->state[0]);
+    MD5_PUT_UINT32(&digest[ 4], context->state[1]);
+    MD5_PUT_UINT32(&digest[ 8], context->state[2]);
+    MD5_PUT_UINT32(&digest[12], context->state[3]);
+	//MD5Encode(digest,context->state,16);
 }
 
 #ifdef __MD5_TEST__
@@ -227,7 +232,7 @@ MD5 ("123456789012345678901234567890123456789012345678901234567890123456
 int main()
 {
     int i;
-    unsigned char md5_hash[16];
+    unsigned char md5_hash[MD5_DIGEST_LENGTH];
     char *str = "123456789012345678901234567890123456789012345678901234567890"
     "12345678901234567890";
 	MD5_CTX md5_ctx;
