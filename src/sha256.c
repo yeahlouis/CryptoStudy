@@ -9,6 +9,10 @@
  * Included for memcpy & memset
  */
 #include <string.h>
+/*
+ * Included for snprintf
+ */
+#include <stdio.h>
 
 #include "sha256.h"
 
@@ -57,7 +61,7 @@ unsigned char PADDING[] = {
 
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
-static void SHA256Transform(unsigned int state[8], unsigned char block[64]) {
+static void sha256_transform(uint32_t state[8], const unsigned char block[64]) {
 	const uint32_t rk [64] = {
 		0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
 		0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -105,7 +109,7 @@ static void SHA256Transform(unsigned int state[8], unsigned char block[64]) {
 		ROUND(b, c, d, e, f, g, h, a, rk[i + 7], WW(i + 7));
 	}
 
-    /* Add the working vars back into context.state[] */
+    /* Add the working vars back into ctx.state[] */
     state[0] += a;
     state[1] += b;
     state[2] += c;
@@ -120,159 +124,155 @@ static void SHA256Transform(unsigned int state[8], unsigned char block[64]) {
 }
 
 
-void SHA256Init(SHA256_CTX *context) {
-	context->count[0] = 0;
-	context->count[1] = 0;
+void sha256_init(sha256_ctx *ctx) {
+	ctx->count[0] = 0;
+	ctx->count[1] = 0;
 
     /* SHA256 initialization constants */
-	context->state[0] = 0x6a09e667;
-	context->state[1] = 0xbb67ae85;
-	context->state[2] = 0x3c6ef372;
-	context->state[3] = 0xa54ff53a;
-	context->state[4] = 0x510e527f;
-	context->state[5] = 0x9b05688c;
-	context->state[6] = 0x1f83d9ab;
-	context->state[7] = 0x5be0cd19;
+	ctx->state[0] = 0x6a09e667;
+	ctx->state[1] = 0xbb67ae85;
+	ctx->state[2] = 0x3c6ef372;
+	ctx->state[3] = 0xa54ff53a;
+	ctx->state[4] = 0x510e527f;
+	ctx->state[5] = 0x9b05688c;
+	ctx->state[6] = 0x1f83d9ab;
+	ctx->state[7] = 0x5be0cd19;
 }
 
 
-void SHA256Update(SHA256_CTX *context,unsigned char *input,unsigned int inputlen)
+void sha256_update(sha256_ctx *ctx, const unsigned char *input, unsigned int len)
 {
-	unsigned int i = 0,index = 0,partlen = 0;
+	uint32_t i = 0, index = 0, partlen = 0;
+    uint32_t inputlen = len; 
 
     /* Compute number of bytes mod 64 */
-	index = (context->count[0] >> 3) & 0x3F;
+	index = (ctx->count[0] >> 3) & 0x3F;
 	partlen = 64 - index; //first, index is 0, partlen is 64
 
-	context->count[0] += inputlen << 3;
-	if(context->count[0] < (inputlen << 3)) {
-		context->count[1]++;
+	ctx->count[0] += inputlen << 3;
+	if(ctx->count[0] < (inputlen << 3)) {
+		ctx->count[1]++;
 	}
 
-	context->count[1] += inputlen >> 29;
+	ctx->count[1] += inputlen >> 29;
 
 
 	if(inputlen >= partlen) {
-		memcpy(&context->buffer[index],input,partlen);
+		memcpy(&ctx->buffer[index],input,partlen);
     
-		SHA256Transform(context->state,context->buffer);
+		sha256_transform(ctx->state,ctx->buffer);
 		for(i = partlen;i+64 <= inputlen;i+=64) {
-			SHA256Transform(context->state,&input[i]);
+			sha256_transform(ctx->state,&input[i]);
 		}
 		index = 0;
 	} else {
 		i = 0;
 	}
 	
-	memcpy(&context->buffer[index],&input[i],inputlen-i);
+	memcpy(&ctx->buffer[index],&input[i],inputlen-i);
 }
 
 /* Add padding and return the message digest. */
-void SHA256Final(SHA256_CTX *context,unsigned char digest[SHA256_DIGEST_LENGTH]) {
+void sha256_final(sha256_ctx *ctx, unsigned char digest[SHA256_DIGEST_SIZE]) {
+    int i;
 	unsigned int index = 0,padlen = 0;
 	unsigned char bits[8];
-	index = (context->count[0] >> 3) & 0x3F;
+	index = (ctx->count[0] >> 3) & 0x3F;
 	padlen = (index < 56)?(56-index):(120-index);
     
-    //int i;
     
     //高位在前
-    SHA256_PUT_UINT32(&bits[0], context->count[1]);
-    SHA256_PUT_UINT32(&bits[4], context->count[0]);
+    SHA256_PUT_UINT32(&bits[0], ctx->count[1]);
+    SHA256_PUT_UINT32(&bits[4], ctx->count[0]);
 
-	SHA256Update(context,PADDING,padlen);
-	SHA256Update(context,bits, sizeof(bits));
+	sha256_update(ctx,PADDING,padlen);
+	sha256_update(ctx,bits, sizeof(bits));
 
-    SHA256_PUT_UINT32(&digest[ 0], context->state[0]);
-    SHA256_PUT_UINT32(&digest[ 4], context->state[1]);
-    SHA256_PUT_UINT32(&digest[ 8], context->state[2]);
-    SHA256_PUT_UINT32(&digest[12], context->state[3]);
-    SHA256_PUT_UINT32(&digest[16], context->state[4]);
-    SHA256_PUT_UINT32(&digest[20], context->state[5]);
-    SHA256_PUT_UINT32(&digest[24], context->state[6]);
-    SHA256_PUT_UINT32(&digest[28], context->state[7]);
-
-	//memset(context, 0x00, sizeof(SHA256_CTX));
+    for (i = 0; i < 8; i ++) {
+        SHA256_PUT_UINT32(&digest[i * 4], ctx->state[i]);
+    }
 }
 
 
+void sha256_sample(const unsigned char *input, unsigned int len, unsigned char digest[SHA256_DIGEST_SIZE]) {
+	sha256_ctx ctx;
+    sha256_init(&ctx);
+    sha256_update(&ctx, input, len);
+    sha256_final(&ctx, digest);
+}
+
+void sha256_hexstr(const unsigned char *input, unsigned int len, char hexstr[SHA256_DIGEST_HEXSTR_LEN]) {
+    int i;
+    unsigned char digest[SHA256_DIGEST_SIZE];
+	sha256_ctx ctx;
+    sha256_init(&ctx);
+    sha256_update(&ctx, input, len);
+    sha256_final(&ctx, digest);
+    
+    for (i = 0; i < sizeof(digest) && SHA256_DIGEST_HEXSTR_LEN > (i * 2); i ++) {
+        snprintf(hexstr + (i * 2), SHA256_DIGEST_HEXSTR_LEN - (i * 2), "%02x", digest[i]); 
+    }
+}
+
 
 #ifdef __SHA256_TEST__
-/*  static const struct {
- *      char *msg;
- *      unsigned char hash[32];
- *  } tests[] = {
- *    { "abc",
- *      { 0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
- *        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
- *        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
- *        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad }
- *   },
- *   { "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
- *     { 0x24, 0x8d, 0x6a, 0x61, 0xd2, 0x06, 0x38, 0xb8,
- *       0xe5, 0xc0, 0x26, 0x93, 0x0c, 0x3e, 0x60, 0x39,
- *       0xa3, 0x3c, 0xe4, 0x59, 0x64, 0xff, 0x21, 0x67,
- *       0xf6, 0xec, 0xed, 0xd4, 0x19, 0xdb, 0x06, 0xc1 }
- *   },
- * };
- * 
- */
-
-
 /*
-gcc -Wall -D__SHA256_TEST__ sha256.c
-**/
+ * gcc -Wall -D__SHA256_TEST__ sha256.c
+ */
 #include <stdio.h>
+#include <stdlib.h>
 int main()
 {
-    int i, j;
-    unsigned char SHA256_hash[SHA256_DIGEST_LENGTH];
-    char *stra[] = {
+    int ret = EXIT_FAILURE;
+    int i;
+    char hash_str[SHA256_DIGEST_HEXSTR_LEN];
+    const char *stra[] = {
         "",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85",
         "a",
+        "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
         "abc",
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+        "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
         "12345678901234567890123456789012345678901234567890123456789012345678901234567890",
-        NULL
+        "f371bc4a311f2b009eef952dd83ca80e2b60026c8e935592d0f9c308453c813e",
+        NULL,
+        NULL,
+        NULL,
+        NULL,
     };
     
     char ch = 0xEF;
 
-	SHA256_CTX SHA256_ctx;
-
-    printf("\n=========================\n");
-    printf("SHA1 (\"\") = da39a3ee5e6b4b0d3255bfef95601890afd80709\n");
-    printf("SHA1 (\"a\") = ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb\n");
-    printf("SHA1 (\"abc\") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n");
-    printf("SHA1 (\"message digest\") = f96b697d7cb7938d525a2f31aaf161d0\n");
-    printf("SHA1 (\"abcdefghijklmnopqrstuvwxyz\") = c3fcd3d76192e4007dfb496cca67e13b\n");
-    printf("SHA1 (\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\") =\n"
-    "d174ab98d277d9f5a5611c2c9f419d9f\n");
-    printf("SHA1 (\"123456789012345678901234567890123456789012345678901234567890123456\n"
-    "78901234567890\") = 50abf5706a150990a08b2c5ea40fa0e585554732\n");
-    printf("=========================\n");
+    printf("+++++++++++++++++++++++++\n");
     
     printf("ch = [%#X][%u][%d]\n", ch, ch, ch);
     printf("sizeof(stra)/sizeof(stra[0] = [%lu]\n", sizeof(stra) / sizeof(stra[0]));
+    printf("sizeof(hash_str) = [%lu]\n", sizeof(hash_str));
 
-    for (i = 0; i < sizeof(stra) / sizeof(stra[0]); i ++) {
+    for (i = 0; i < sizeof(stra) / sizeof(stra[0]); i += 2) {
         if (NULL == stra[i]) {
             break;
         }
-        printf("--->i = [%d][%s]\n", i, stra[i]);
-        SHA256Init(&SHA256_ctx);
-	    SHA256Update(&SHA256_ctx, (unsigned char *)stra[i], strlen(stra[i]));
-	    SHA256Final(&SHA256_ctx, SHA256_hash);
+        sha256_hexstr((const unsigned char *)stra[i], strlen(stra[i]), hash_str);
+        printf("\n--->i = [%d][%s]\n", i, stra[i]);
         printf("strlen(stra) = [%zu]\n", strlen(stra[i]));
-        printf("SHA256(\"%s\")=\n", stra[i]); 
-        for (j = 0; j < sizeof(SHA256_hash); j ++) {
-            printf("%02x", SHA256_hash[j]);
-        } 
-        printf("\n\n"); 
+        printf("SHA256(\"%s\")=\n[%s]\n[%s]\n", stra[i], hash_str, stra[i + 1]);
+        if (strcmp((const char *)hash_str, stra[i + 1]) == 0) {
+            printf("--->success...\n");
+        } else {
+            printf("----failure!!!\n");
+            printf("-------------------------\n\n");
+            return (ret);
+        }
     }
 
-    printf("\n"); 
+    printf("+++++++++++++++++++++++++\n");
+
+    ret = EXIT_SUCCESS;
     
-    return 0;
+    return (ret);
 }
 #endif
 

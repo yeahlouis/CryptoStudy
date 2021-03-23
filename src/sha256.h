@@ -8,8 +8,9 @@
 
 #include <stdint.h>
 
-#define SHA256_DIGEST_LENGTH		32
-#define SHA256_DIGEST_STRING_LENGTH	65
+#define SHA256_DIGEST_SIZE (256 / 8)
+#define SHA256_BLOCK_SIZE  (512 / 8)
+#define SHA256_DIGEST_HEXSTR_LEN (SHA256_DIGEST_SIZE * 2 + 1)
 
 # ifdef  __cplusplus
 extern "C" {
@@ -21,11 +22,11 @@ typedef struct
 	uint32_t state[8];
 	uint32_t count[2];
 	unsigned char buffer[64];
-}SHA256_CTX;
+}sha256_ctx;
 
-void SHA256Init(SHA256_CTX *context);
-void SHA256Update(SHA256_CTX *context,unsigned char *input,unsigned int inputlen);
-void SHA256Final(SHA256_CTX *context,unsigned char digest[SHA256_DIGEST_LENGTH]);
+void sha256_init(sha256_ctx *ctx);
+void sha256_update(sha256_ctx *ctx, const unsigned char *input, unsigned int inputlen);
+void sha256_final(sha256_ctx *ctx, unsigned char digest[SHA256_DIGEST_SIZE]);
 
 # ifdef  __cplusplus
 extern "C" {
