@@ -4,7 +4,6 @@
  */
 
 #include <stdint.h>
-
 /*
  * Included for memcpy & memset
  */
@@ -194,41 +193,96 @@ void sha256_final(sha256_ctx *ctx, unsigned char digest[SHA256_DIGEST_SIZE]) {
 }
 
 
-void sha256_sample(const unsigned char *input, unsigned int len, unsigned char digest[SHA256_DIGEST_SIZE]) {
+void sha256_sample(const unsigned char *input, unsigned int len, unsigned char *digest, unsigned int digest_size) {
+    unsigned char digest_inside[SHA256_DIGEST_SIZE];
 	sha256_ctx ctx;
     sha256_init(&ctx);
     sha256_update(&ctx, input, len);
-    sha256_final(&ctx, digest);
+    sha256_final(&ctx, digest_inside);
+    memcpy(digest, digest_inside, digest_size);
 }
 
-void sha256_hexstr(const unsigned char *input, unsigned int len, char hexstr[SHA256_DIGEST_HEXSTR_LEN]) {
+void sha256_hexstr(const unsigned char *input, unsigned int len, char *hexstr, unsigned int hexstr_size) {
     int i;
-    unsigned char digest[SHA256_DIGEST_SIZE];
+    unsigned char digest_inside[SHA256_DIGEST_SIZE];
 	sha256_ctx ctx;
     sha256_init(&ctx);
     sha256_update(&ctx, input, len);
-    sha256_final(&ctx, digest);
+    sha256_final(&ctx, digest_inside);
     
-    for (i = 0; i < sizeof(digest) && SHA256_DIGEST_HEXSTR_LEN > (i * 2); i ++) {
-        snprintf(hexstr + (i * 2), SHA256_DIGEST_HEXSTR_LEN - (i * 2), "%02x", digest[i]); 
+    for (i = 0; i < sizeof(digest_inside) && hexstr_size > (i * 2) + 1; i ++) {
+        snprintf(hexstr + (i * 2), hexstr_size - (i * 2), "%02x", (digest_inside[i] & 0xFF)); 
     }
 }
 
 
-#ifdef __SHA256_TEST__
+#ifdef __SHA256_DIGEST_TEST__
 /*
- * gcc -Wall -D__SHA256_TEST__ sha256.c
+ * gcc -Wall -D__SHA256_DIGEST_TEST__ sha256.c
  */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-int main()
+int check_cpu() 
 {
-    int ret = EXIT_FAILURE;
+    union w
+    {
+        int a;
+        char b;
+    } c;
+    c.a = 1;
+    return (1 == c.b);
+}
+
+int sha256_file(const char *path)
+{
+    int ret = -1, err;
     int i;
+    FILE *fp = NULL;
+    unsigned char buff[1024];
+    unsigned char hash[SHA256_DIGEST_SIZE];
+    char hash_tmp[SHA256_DIGEST_HEXSTR_LEN];
+	sha256_ctx ctx;
+
+
+    if (NULL == path || strlen(path) <= 0) {
+        return (ret);
+    }
+    if ((fp = fopen(path, "rb")) == NULL) {
+        err = errno ? errno : -1;
+        printf("Unable to open file.[%s](%s)\n", path, strerror(err));
+        return (ret);
+    }
+
+    sha256_init(&ctx);
+    while (!feof(fp)) {
+       i = fread(buff, 1, sizeof(buff), fp); 
+       sha256_update(&ctx, (const unsigned char *)buff, (unsigned int)i);
+    }
+    fclose(fp);
+    fp = NULL;
+    sha256_final(&ctx, hash);
+
+    for (i = 0; i < sizeof(hash); i ++) {
+        snprintf(hash_tmp + (i * 2), sizeof(hash_tmp) - (i * 2), "%02x", (hash[i] & 0xFF)); 
+    }
+    printf("\ncalculating SHA256 on [%s]\n[%s]\n", path, hash_tmp);
+
+    ret = 0;
+    return (ret);
+}
+
+int test()
+{
+    int ret = -1;
+    int i, j;
+	sha256_ctx ctx;
+    unsigned char hash[SHA256_DIGEST_SIZE];
+    char hash_tmp[SHA256_DIGEST_HEXSTR_LEN];
     char hash_str[SHA256_DIGEST_HEXSTR_LEN];
     const char *stra[] = {
         "",
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "a",
         "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
         "abc",
@@ -243,23 +297,38 @@ int main()
         NULL,
     };
     
-    char ch = 0xEF;
+
+    const char *strb[] = {
+        "a",
+        "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+    };
+    
 
     printf("+++++++++++++++++++++++++\n");
-    
-    printf("ch = [%#X][%u][%d]\n", ch, ch, ch);
     printf("sizeof(stra)/sizeof(stra[0] = [%lu]\n", sizeof(stra) / sizeof(stra[0]));
+    printf("sizeof(hash) = [%lu]\n", sizeof(hash));
     printf("sizeof(hash_str) = [%lu]\n", sizeof(hash_str));
 
     for (i = 0; i < sizeof(stra) / sizeof(stra[0]); i += 2) {
         if (NULL == stra[i]) {
             break;
         }
-        sha256_hexstr((const unsigned char *)stra[i], strlen(stra[i]), hash_str);
+
         printf("\n--->i = [%d][%s]\n", i, stra[i]);
         printf("strlen(stra) = [%zu]\n", strlen(stra[i]));
-        printf("SHA256(\"%s\")=\n[%s]\n[%s]\n", stra[i], hash_str, stra[i + 1]);
-        if (strcmp((const char *)hash_str, stra[i + 1]) == 0) {
+
+        sha256_sample((const unsigned char *)stra[i], strlen(stra[i]), hash, sizeof(hash));
+        for (j = 0; j < sizeof(hash); j ++) {
+            snprintf(hash_tmp + (j * 2), sizeof(hash_tmp) - (j * 2), "%02x", (hash[j] & 0xFF)); 
+        }
+
+        sha256_hexstr((const unsigned char *)stra[i], strlen(stra[i]), hash_str, sizeof(hash_str));
+        printf("SHA256(\"%s\")=\n[%s]-sha256_smaple\n[%s]-sha256_hexstr\n[%s]\n", stra[i], hash_tmp, hash_str, stra[i + 1]);
+        if (strcmp((const char *)hash_str, stra[i + 1]) == 0 && strcmp((const char *)hash_tmp, stra[i + 1]) == 0) {
             printf("--->success...\n");
         } else {
             printf("----failure!!!\n");
@@ -268,13 +337,63 @@ int main()
         }
     }
 
+    sha256_init(&ctx);
+    for (i = 0; i < 1000000; i ++) {
+        sha256_update(&ctx, (const unsigned char *)strb[0], (unsigned int)strlen(strb[0]));
+    }
+    sha256_final(&ctx, hash);
+    for (j = 0; j < sizeof(hash); j ++) {
+        snprintf(hash_tmp + (j * 2), sizeof(hash_tmp) - (j * 2), "%02x", (hash[j] & 0xFF)); 
+    }
+    printf("\ncalculating SHA256 on A million repetitions of \"a\"('a' * 1,000,000)\n[%s]-sha256\n[%s]\n", hash_tmp, strb[1]);
+    if (strcmp((const char *)hash_tmp, strb[1]) == 0) {
+        printf("--->success...\n");
+    } else {
+        printf("----failure!!!\n");
+        printf("-------------------------\n\n");
+        return (ret);
+    }
+
     printf("+++++++++++++++++++++++++\n");
 
-    ret = EXIT_SUCCESS;
+    ret = 0;
+    return (ret);
+}
+
+int main(int argc, char *argv[])
+{
+    int ret = EXIT_FAILURE;
+    char hash_str[SHA256_DIGEST_HEXSTR_LEN];
+    
+    if (check_cpu()) {
+        printf("--->This is a little-endian machine.\n");
+    } else {
+        printf("--->This is a big-endian machine!!!!\n");
+    }
+
+    //printf("argc = [%d]\n", argc);
+    if (argc < 2) {
+        if (0 == test()) {
+            ret = EXIT_SUCCESS;
+        }
+    } else if (argc == 2) {
+        if (NULL != argv[1]) {
+            sha256_hexstr((const unsigned char *)argv[1], strlen(argv[1]), hash_str, sizeof(hash_str));
+            printf("SHA256(\"%s\")=\n[%s]\n", argv[1], hash_str);
+        } 
+    } else if (argc == 3) {
+        if (NULL != argv[1] && NULL != argv[2] && strcmp("-f", argv[1]) == 0) {
+            if (0 == sha256_file(argv[2])) {
+                ret = EXIT_SUCCESS;
+            }
+        }
+    }
     
     return (ret);
 }
-#endif
+
+// gcc -Wall -D__SHA256_DIGEST_TEST__ sha256.c
+#endif /* end of __SHA256_DIGEST_TEST__ */
 
 
 /* vim:tw=78:ft=c:tabstop=4:expandtabs:shiftwidth=4 */
